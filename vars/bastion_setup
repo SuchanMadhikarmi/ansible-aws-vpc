@@ -1,0 +1,5 @@
+bastion_ami: ami-0fe972392d04329e1
+region: us-east-2
+MYIP: 113.199.226.11/32
+
+

@@ -36,7 +36,7 @@
       register: BastionSG_out
 
     - name: Creating Bastion host
-      ec2_key:
+      ec2:
         key_name: vprofile-key
         region: "{{region}}"
         instance_type: t2.micro
@@ -49,7 +49,7 @@
           Owner: DevOps Team
         exact_count: 1
         count_tag:
-          Name: "Bastoin_host"
+          Name: "Bastion_host"
           Project: Vprofile
           Owner: DevOps Team
         group_id: "{{BastionSG_out.group_id}}"

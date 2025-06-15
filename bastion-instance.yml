@@ -3,6 +3,8 @@
   hosts: localhost
   connection: local
   gather_facts: no
+  collections:
+    - amazon.aws
   tasks:
     - name: Import VPC setup variable
       include_vars: vars/bastion_setup

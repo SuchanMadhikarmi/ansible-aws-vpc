@@ -13,7 +13,7 @@
     - name: Create ec2 key
       ec2_key:
         name: vprofile-key
-        region: "{{region:}}"
+        region: "{{region}}"
       register: key_out
 
     - name:  Save private key into file

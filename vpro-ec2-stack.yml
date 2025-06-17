@@ -8,12 +8,10 @@
 
   tasks:
     - name: Import VPC setup Variables
-      include_vars:
-        file: vars/output_vars
+      include_vars: vars/output_vars
 
     - name: Import vprofile setup variables
-      include_vars:
-        file: vars/vprostacksetup
+      include_vars: vars/vprostacksetup
 
     - name: Create vprofile ec2-key
       amazon.aws.ec2_key:
@@ -25,11 +23,11 @@
       copy:
         content: "{{ vprokey_out.key.private_key }}"
         dest: "./loginkey_vpro.pem"
-        mode: '0600'
+        mode: 0600
       when: vprokey_out.changed
 
     - name: Create Security group for load balancer
-      amazon.aws.ec2_security_group:
+      amazon.aws.ec2_group:
         name: vproELB-SG
         description: Allow port 80 from everywhere and all port within sg
         region: "{{ region }}"
@@ -41,8 +39,8 @@
             cidr_ip: 0.0.0.0/0
       register: vproELBSG_out
 
-    - name: Create Security group for vprofile stack
-      amazon.aws.ec2_security_group:
+    - name: Create Security group for vprofilestack
+      amazon.aws.ec2_group:
         name: vproStack-SG
         description: Allow port 22 from everywhere and all port within sg
         region: "{{ region }}"
@@ -53,6 +51,7 @@
             from_port: 80
             to_port: 80
             group_id: "{{ vproELBSG_out.group_id }}"
+
           - proto: tcp
             from_port: 22
             to_port: 22
@@ -60,9 +59,9 @@
       register: vproStackSG_out
 
     - name: Update security group with its own sg id
-      amazon.aws.ec2_security_group:
+      amazon.aws.ec2_group:
         name: vproStack-SG
-        description: Allow all protocols within itself
+        description: Allow all protocols within the security group itself
         region: "{{ region }}"
         vpc_id: "{{ vpc_id }}"
         purge_rules: no
@@ -78,14 +77,12 @@
         image_id: "{{ nginx_ami }}"
         wait: yes
         wait_timeout: 300
-        instance_tags:
-          Name: "web01"
+        tags:
+          Name: web01
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
-        count_tag:
-          Name: "web01"
-        security_group_ids:
+        security_groups:
           - "{{ vproStackSG_out.group_id }}"
         subnet_id: "{{ privsub1id }}"
       register: web01_out
@@ -98,14 +95,12 @@
         image_id: "{{ tomcat_ami }}"
         wait: yes
         wait_timeout: 300
-        instance_tags:
-          Name: "app01"
+        tags:
+          Name: app01
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
-        count_tag:
-          Name: "app01"
-        security_group_ids:
+        security_groups:
           - "{{ vproStackSG_out.group_id }}"
         subnet_id: "{{ privsub1id }}"
       register: app01_out
@@ -118,14 +113,12 @@
         image_id: "{{ memcache_ami }}"
         wait: yes
         wait_timeout: 300
-        instance_tags:
-          Name: "mc01"
+        tags:
+          Name: mc01
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
-        count_tag:
-          Name: "mc01"
-        security_group_ids:
+        security_groups:
           - "{{ vproStackSG_out.group_id }}"
         subnet_id: "{{ privsub1id }}"
       register: mc01_out
@@ -138,14 +131,12 @@
         image_id: "{{ rmq_ami }}"
         wait: yes
         wait_timeout: 300
-        instance_tags:
-          Name: "rmq01"
+        tags:
+          Name: rmq01
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
-        count_tag:
-          Name: "rmq01"
-        security_group_ids:
+        security_groups:
           - "{{ vproStackSG_out.group_id }}"
         subnet_id: "{{ privsub1id }}"
       register: rmq01_out
@@ -158,28 +149,26 @@
         image_id: "{{ mysql_ami }}"
         wait: yes
         wait_timeout: 300
-        instance_tags:
-          Name: "db01"
+        tags:
+          Name: db01
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
-        count_tag:
-          Name: "db01"
-        security_group_ids:
+        security_groups:
           - "{{ vproStackSG_out.group_id }}"
         subnet_id: "{{ privsub1id }}"
       register: db01_out
 
     - debug:
-        var: db01_out.tagged_instances[0].id
+        var: db01_out.instances[0].id
 
-    - name: Create Classic ELB
-      amazon.aws.elb_classic_lb:
-        name: "vprofile-elb"
+    - name: Create Elastic Load Balancer
+      amazon.aws.ec2_elb_lb:
+        name: vprofile-elb
         region: "{{ region }}"
         state: present
-        instances:
-          - "{{ web01_out.tagged_instances[0].id }}"
+        instance_ids:
+          - "{{ web01_out.instances[0].id }}"
         purge_instance_ids: true
         security_group_ids:
           - "{{ vproELBSG_out.group_id }}"
@@ -192,15 +181,15 @@
             load_balancer_port: 80
             instance_port: 80
 
-    - name: Insert/Update hosts IP and name in file provision-stack
+    - name: Insert/Update hosts IP and names in file provision-stack/group_vars/hostsip
       blockinfile:
         path: provision-stack/group_vars/hostsip
         block: |
-          web01_ip: {{ web01_out.tagged_instances[0].private_ip }}
-          app01_ip: {{ app01_out.tagged_instances[0].private_ip }}
-          rmq01_ip: {{ rmq01_out.tagged_instances[0].private_ip }}
-          mc01_ip: {{ mc01_out.tagged_instances[0].private_ip }}
-          db01_ip: {{ db01_out.tagged_instances[0].private_ip }}
+          web01_ip: {{ web01_out.instances[0].private_ip }}
+          app01_ip: {{ app01_out.instances[0].private_ip }}
+          rmq01_ip: {{ rmq01_out.instances[0].private_ip }}
+          mc01_ip: {{ mc01_out.instances[0].private_ip }}
+          db01_ip: {{ db01_out.instances[0].private_ip }}
 
     - name: Copy login key to provision stack directory
       copy:
@@ -208,15 +197,15 @@
         dest: provision-stack/loginkey_vpro.pem
         mode: '0400'
 
-    - name: Insert/Update inventory file provision stack/inventory vpro
+    - name: Insert/Update inventory file provision-stack/inventory-vpro
       blockinfile:
         path: provision-stack/inventory-vpro
         block: |
-          web01 ansible_host={{ web01_out.tagged_instances[0].private_ip }}
-          app01 ansible_host={{ app01_out.tagged_instances[0].private_ip }}
-          rmq01 ansible_host={{ rmq01_out.tagged_instances[0].private_ip }}
-          mc01 ansible_host={{ mc01_out.tagged_instances[0].private_ip }}
-          db01 ansible_host={{ db01_out.tagged_instances[0].private_ip }}
+          web01 ansible_host={{ web01_out.instances[0].private_ip }}
+          app01 ansible_host={{ app01_out.instances[0].private_ip }}
+          rmq01 ansible_host={{ rmq01_out.instances[0].private_ip }}
+          mc01 ansible_host={{ mc01_out.instances[0].private_ip }}
+          db01 ansible_host={{ db01_out.instances[0].private_ip }}
           cntl ansible_host=127.0.0.1 ansible_connection=local
 
           [websrvgrp]
@@ -247,4 +236,3 @@
           [stack_inst:vars]
           ansible_user=ubuntu
           ansible_ssh_private_key_file=loginkey_vpro.pem
-          # ansible_python_interpreter=/usr/bin/python3

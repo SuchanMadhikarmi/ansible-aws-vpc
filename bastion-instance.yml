@@ -28,18 +28,18 @@
         mode: '0600'
       when: key_out.changed
 
-    - name: Create security group for bastion host
-      amazon.aws.ec2_group:
-        name: Bastion-host-sg
-        description: Allow port 22 from my IP
-        region: "{{ region }}"
-        vpc_id: "{{ vpc_id }}"
-        rules:
-          - proto: tcp
-            from_port: 22
-            to_port: 22
-            cidr_ip: "{{ MYIP }}"
-      register: BastionSG_out
+    # - name: Create security group for bastion host
+    #   amazon.aws.ec2_group:
+    #     name: Bastion-host-sg
+    #     description: Allow port 22 from my IP
+    #     region: "{{ region }}"
+    #     vpc_id: "{{ vpc_id }}"
+    #     rules:
+    #       - proto: tcp
+    #         from_port: 22
+    #         to_port: 22
+    #         cidr_ip: "{{ MYIP }}"
+    #   register: BastionSG_out
 
     
     # - name: Create Bastion host EC2 instance

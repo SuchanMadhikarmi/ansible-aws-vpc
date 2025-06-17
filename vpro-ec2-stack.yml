@@ -9,7 +9,7 @@
   tasks:
     - name: Import VPC setup Variables
       include_vars: vars/output_vars
-
+    
     - name: Import vprofile setup variables
       include_vars: vars/vprostacksetup
 
@@ -18,12 +18,12 @@
         name: vprokey
         region: "{{ region }}"
       register: vprokey_out
-
+    
     - name: Save private key into file loginkey_vpro.pem
       copy:
         content: "{{ vprokey_out.key.private_key }}"
         dest: "./loginkey_vpro.pem"
-        mode: 0600
+        mode: '0600'
       when: vprokey_out.changed
 
     - name: Create Security group for load balancer
@@ -51,17 +51,16 @@
             from_port: 80
             to_port: 80
             group_id: "{{ vproELBSG_out.group_id }}"
-
           - proto: tcp
             from_port: 22
             to_port: 22
             group_id: "{{ BastionSGid }}"
       register: vproStackSG_out
-
+    
     - name: Update security group with its own sg id
       amazon.aws.ec2_group:
         name: vproStack-SG
-        description: Allow all protocols within the security group itself
+        description: Allow all traffic within the security group
         region: "{{ region }}"
         vpc_id: "{{ vpc_id }}"
         purge_rules: no
@@ -82,9 +81,11 @@
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
+        count_tag:
+          Name: web01
         security_groups:
-          - "{{ vproStackSG_out.group_id }}"
-        subnet_id: "{{ privsub1id }}"
+          - "{{ vproStackSG_out.group_name }}"
+        vpc_subnet_id: "{{ privsub1id }}"
       register: web01_out
 
     - name: Create Tomcat instance
@@ -100,9 +101,11 @@
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
+        count_tag:
+          Name: app01
         security_groups:
-          - "{{ vproStackSG_out.group_id }}"
-        subnet_id: "{{ privsub1id }}"
+          - "{{ vproStackSG_out.group_name }}"
+        vpc_subnet_id: "{{ privsub1id }}"
       register: app01_out
 
     - name: Create Memcached instance
@@ -118,9 +121,11 @@
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
+        count_tag:
+          Name: mc01
         security_groups:
-          - "{{ vproStackSG_out.group_id }}"
-        subnet_id: "{{ privsub1id }}"
+          - "{{ vproStackSG_out.group_name }}"
+        vpc_subnet_id: "{{ privsub1id }}"
       register: mc01_out
 
     - name: Create RabbitMQ instance
@@ -136,9 +141,11 @@
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
+        count_tag:
+          Name: rmq01
         security_groups:
-          - "{{ vproStackSG_out.group_id }}"
-        subnet_id: "{{ privsub1id }}"
+          - "{{ vproStackSG_out.group_name }}"
+        vpc_subnet_id: "{{ privsub1id }}"
       register: rmq01_out
 
     - name: Create MySQL instance
@@ -154,13 +161,16 @@
           Project: Vprofile
           Owner: DevOps Team
         exact_count: 1
+        count_tag:
+          Name: db01
         security_groups:
-          - "{{ vproStackSG_out.group_id }}"
-        subnet_id: "{{ privsub1id }}"
+          - "{{ vproStackSG_out.group_name }}"
+        vpc_subnet_id: "{{ privsub1id }}"
       register: db01_out
 
-    - debug:
-        var: db01_out.instances[0].id
+    - name: Debug db01 instance ID
+      debug:
+        var: db01_out.instance_ids[0]
 
     - name: Create Elastic Load Balancer
       amazon.aws.ec2_elb_lb:
@@ -168,7 +178,7 @@
         region: "{{ region }}"
         state: present
         instance_ids:
-          - "{{ web01_out.instances[0].id }}"
+          - "{{ web01_out.instance_ids[0] }}"
         purge_instance_ids: true
         security_group_ids:
           - "{{ vproELBSG_out.group_id }}"
@@ -181,15 +191,15 @@
             load_balancer_port: 80
             instance_port: 80
 
-    - name: Insert/Update hosts IP and names in file provision-stack/group_vars/hostsip
+    - name: Insert/Update hosts IP and name in file provision-stack
       blockinfile:
         path: provision-stack/group_vars/hostsip
         block: |
-          web01_ip: {{ web01_out.instances[0].private_ip }}
-          app01_ip: {{ app01_out.instances[0].private_ip }}
-          rmq01_ip: {{ rmq01_out.instances[0].private_ip }}
-          mc01_ip: {{ mc01_out.instances[0].private_ip }}
-          db01_ip: {{ db01_out.instances[0].private_ip }}
+          web01_ip: {{ web01_out.instances[0].private_ip_address }}
+          app01_ip: {{ app01_out.instances[0].private_ip_address }}
+          rmq01_ip: {{ rmq01_out.instances[0].private_ip_address }}
+          mc01_ip: {{ mc01_out.instances[0].private_ip_address }}
+          db01_ip: {{ db01_out.instances[0].private_ip_address }}
 
     - name: Copy login key to provision stack directory
       copy:
@@ -197,15 +207,15 @@
         dest: provision-stack/loginkey_vpro.pem
         mode: '0400'
 
-    - name: Insert/Update inventory file provision-stack/inventory-vpro
+    - name: Insert/Update inventory file provision stack/inventory vpro
       blockinfile:
         path: provision-stack/inventory-vpro
         block: |
-          web01 ansible_host={{ web01_out.instances[0].private_ip }}
-          app01 ansible_host={{ app01_out.instances[0].private_ip }}
-          rmq01 ansible_host={{ rmq01_out.instances[0].private_ip }}
-          mc01 ansible_host={{ mc01_out.instances[0].private_ip }}
-          db01 ansible_host={{ db01_out.instances[0].private_ip }}
+          web01 ansible_host={{ web01_out.instances[0].private_ip_address }}
+          app01 ansible_host={{ app01_out.instances[0].private_ip_address }}
+          rmq01 ansible_host={{ rmq01_out.instances[0].private_ip_address }}
+          mc01 ansible_host={{ mc01_out.instances[0].private_ip_address }}
+          db01 ansible_host={{ db01_out.instances[0].private_ip_address }}
           cntl ansible_host=127.0.0.1 ansible_connection=local
 
           [websrvgrp]
@@ -214,7 +224,7 @@
           [appsrvgrp]
           app01
 
-          [rmqsrvgrp]
+          [rmqsrvgrp] 
           rmq01
 
           [mcsrvgrp]

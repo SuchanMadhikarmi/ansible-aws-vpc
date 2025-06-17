@@ -9,7 +9,7 @@
   tasks:
     - name: Import VPC setup variable
       include_vars:
-        file: vars/bastion_setup
+        file: vars/vpc_setup
 
     - name: Import output variables
       include_vars:
